@@ -16,16 +16,26 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"os"
+	"time"
 
-	"github.com/spf13/cobra"
-
+	blogpb "github.com/marceloaguero/grpc-mongo-crud/proto"
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"google.golang.org/grpc"
 )
 
 var cfgFile string
+
+// Client and context global vars for the cmd package
+// So they can be used by our subcommands
+var client blogpb.BlogServiceClient
+var requestCtx context.Context
+var requestOpts grpc.DialOption
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -59,6 +69,27 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+
+	// After Cobra root config init
+	// We initialize the client
+	fmt.Println("Starting Blog Service Client")
+	// Establish context to timeout if server does not respond
+	requestCtx, _ = context.WithTimeout(context.Background(), 10*time.Second)
+	// Establish insecure grpc options (no TLS)
+	requestOpts = grpc.WithInsecure()
+	// Dial the server, returns a client connection
+	conn, err := grpc.Dial("localhost:50051", requestOpts)
+	if err != nil {
+		log.Fatalf("Unable to establish client connection to localhost:50051: %v", err)
+	}
+
+	// defer posptones the execution of a function until the surrounding function returns
+	// conn.Close() will not be called until the end of main()
+	// The arguments are evaluated immeadiatly but not executed
+	// defer conn.Close()
+
+	// Instantiate the BlogServiceClient with our client connection to the server
+	client = blogpb.NewBlogServiceClient(conn)
 }
 
 // initConfig reads in config file and ENV variables if set.
